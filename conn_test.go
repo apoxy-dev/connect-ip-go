@@ -236,28 +236,33 @@ func FuzzIncomingDatagram(f *testing.F) {
 func TestSendingDatagrams(t *testing.T) {
 	t.Run("invalid IP version", func(t *testing.T) {
 		conn := newProxiedConn(&mockStream{})
-		data := make([]byte, 20)
-		data[0] = 5 << 4 // IPv5
-		_, err := conn.composeDatagram(data)
+		payload := make([]byte, 20)
+		payload[0] = 5 << 4 // IPv5
+		datagram := make([]byte, len(payload)+8)
+		err := conn.composeDatagram(&datagram, payload)
 		require.ErrorContains(t, err, "connect-ip: unknown IP versions: 5")
 	})
 
 	t.Run("IPv4 packet too short", func(t *testing.T) {
 		conn := newProxiedConn(&mockStream{})
-		data, err := (&ipv4.Header{
+		payload, err := (&ipv4.Header{
 			Src:      net.IPv4(1, 2, 3, 4),
 			Dst:      net.IPv4(159, 70, 42, 98),
 			Len:      20,
 			Checksum: 89,
 		}).Marshal()
 		require.NoError(t, err)
-		_, err = conn.composeDatagram(data[:ipv4.HeaderLen-1])
+		payload = payload[:ipv4.HeaderLen-1]
+		datagram := make([]byte, len(payload)+8)
+		err = conn.composeDatagram(&datagram, payload)
 		require.ErrorContains(t, err, "connect-ip: IPv4 packet too short")
 	})
 
 	t.Run("IPv6 packet too short", func(t *testing.T) {
 		conn := newProxiedConn(&mockStream{})
-		_, err := conn.composeDatagram(ipv6Header[:ipv6.HeaderLen-1])
+		payload := ipv6Header[:ipv6.HeaderLen-1]
+		datagram := make([]byte, len(payload)+8)
+		err := conn.composeDatagram(&datagram, payload)
 		require.ErrorContains(t, err, "connect-ip: IPv6 packet too short")
 	})
 }
